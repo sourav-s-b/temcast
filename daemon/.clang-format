@@ -1,0 +1,42 @@
+---
+# Pinned so a clang-format version bump can't silently restyle the repo.
+# Pinned values below are the ones LLVM style relies on; keep them here
+# instead of tracking upstream defaults.
+Language: Cpp
+BasedOnStyle: LLVM
+
+ColumnLimit: 80
+IndentWidth: 2
+TabWidth: 2
+UseTab: Never
+AccessModifierOffset: -2
+
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: None
+AlignConsecutiveDeclarations: None
+AlignOperands: Align
+AlignTrailingComments: false
+
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: All
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLambdasOnASingleLine: All
+AllowShortLoopsOnASingleLine: false
+
+AlwaysBreakTemplateDeclarations: Yes
+BreakBeforeBraces: Attach
+BreakConstructorInitializers: BeforeColon
+Cpp11BracedListStyle: true
+DerivePointerAlignment: false
+FixNamespaceComments: true
+IncludeBlocks: Preserve
+IndentCaseLabels: false
+IndentPPDirectives: None
+NamespaceIndentation: None
+PointerAlignment: Right
+ReflowComments: true
+SortIncludes: true
+SpaceAfterTemplateKeyword: true
+Standard: Latest
+...

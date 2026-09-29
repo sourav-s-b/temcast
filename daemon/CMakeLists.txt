@@ -5,6 +5,10 @@ project(TemCast CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Emit compile_commands.json so clangd gets the real include paths and flags
+# instead of guessing. Consumed via .clangd -> build/compile_commands.json.
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 
 find_package(Boost REQUIRED COMPONENTS system)
 find_package(spdlog REQUIRED)
