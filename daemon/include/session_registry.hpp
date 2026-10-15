@@ -1,23 +1,24 @@
 #pragma once
 
-#include "session.hpp"
-#include "utils/uuid.hpp"
+#include <cstddef>
 #include <memory>
-#include <unordered_map>
 #include <mutex>
+#include <string>
+#include <unordered_map>
+
+class Session;
 
 class SessionRegistry {
 public:
-  explicit SessionRegistry();
 
-
-  std::shared_ptr<Session> add(utils::uuid id , std::shared_ptr<Session> session);
-  std::shared_ptr<Session> find(utils::uuid id);
-  void remove(utils::uuid id);
+  std::shared_ptr<Session> add(const std::string &id,
+                               std::shared_ptr<Session> session);
+  std::shared_ptr<Session> find(const std::string &id) const;
+  void remove(const std::string &id);
 
   std::size_t size() const;
+
 private:
-  std::mutex mutex_;
-  
-  std::unordered_map<utils::uuid, Session> sessions_;
-} ;
+  mutable std::mutex mutex_;
+  std::unordered_map<std::string, std::shared_ptr<Session>> sessions_;
+};

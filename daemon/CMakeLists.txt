@@ -12,12 +12,15 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(Boost REQUIRED COMPONENTS system)
 find_package(spdlog REQUIRED)
+find_package(OpenSSL REQUIRED)
+find_package(nlohmann_json 3.11 REQUIRED)
 
-file(GLOB SOURCES CONFIGURE_DEPENDS "src/*.cpp")
+
+file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "src/*.cpp")
 
 add_executable(daemon ${SOURCES})
 
 target_include_directories(daemon PRIVATE include)
 
-target_link_libraries(daemon PRIVATE Boost::system pthread spdlog::spdlog)
+target_link_libraries(daemon PRIVATE Boost::system pthread spdlog::spdlog OpenSSL::Crypto nlohmann_json::nlohmann_json)
 
