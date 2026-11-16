@@ -10,6 +10,7 @@
   "keywords": [],
   "type": "module",
   "dependencies": {
+    "@inkjs/ui": "^2.0.0",
     "figlet": "^1.12.0",
     "ink": "^7.1.1",
     "ink-text-input": "^6.0.0",

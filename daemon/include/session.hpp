@@ -7,6 +7,7 @@
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
 
+#include <deque>
 #include <nlohmann/json_fwd.hpp>
 
 #include <memory>
@@ -49,6 +50,7 @@ private:
   std::string pending_hardware_;
   std::string pending_name_;
   std::string pending_device_key_;
+  std::deque<std::shared_ptr<std::string>> write_deque_;
 
   void read();
   void handle_message(const std::string &payload);
@@ -57,6 +59,7 @@ private:
   void handle_ready(const std::string &type, const nlohmann::json &message);
 
   void write(const nlohmann::json &message);
+  void do_write();
   void fail(const std::string &reason);
   void close();
 };

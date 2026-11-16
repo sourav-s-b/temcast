@@ -2,7 +2,10 @@
 
 #include "session.hpp"
 
+#include <boost/asio/steady_timer.hpp>
+#include <boost/beast/core/error.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
+#include <chrono>
 #include <spdlog/spdlog.h>
 
 #include <memory>
@@ -74,10 +77,29 @@ void Server::start_upgrade(tcp::socket socket) {
   auto buf = std::make_shared<beast::flat_buffer>();
   auto req = std::make_shared<http_request>();
 
+  auto timer = std::make_shared<asio::steady_timer>(sock->get_executor());
+
+  timer->expires_after(std::chrono::seconds(10));
+
+  timer->async_wait([sock](beast::error_code ec) {
+    if (!ec) {
+      beast::error_code endpoint_ec;
+      auto endpoint = sock->remote_endpoint(endpoint_ec);
+
+      if (!endpoint_ec) {
+        spdlog::warn("HTTP request timeout from {}:{}",
+                     endpoint.address().to_string(), endpoint.port());
+      }
+
+      beast::error_code ignored;
+      sock->close(ignored);
+    }
+  });
+
   beast::http::async_read(
       *sock, *buf, *req,
-      [self = shared_from_this(), sock, buf, req](beast::error_code ec,
-                                                  std::size_t) {
+      [self = shared_from_this(), sock, buf, req, timer](beast::error_code ec,
+                                                         std::size_t) {
         if (ec) {
           spdlog::warn("Error in parsing http {}", ec.message());
           beast::error_code ignored;
@@ -85,18 +107,22 @@ void Server::start_upgrade(tcp::socket socket) {
           return;
         }
 
+        timer->cancel();
         std::string error;
         if (!self->validate_http(*req, error)) {
           spdlog::warn("Rejected: {}", error);
           self->reject(sock, beast::http::status::bad_request, error);
+          timer->cancel();
           return;
         }
 
         auto ws =
             std::make_shared<websocket::stream<tcp::socket>>(std::move(*sock));
 
-      
-asio::dispatch(ws->get_executor(), [self, ws, req]() mutable {
+        ws->set_option(websocket::stream_base::timeout{
+            std::chrono::seconds(10), std::chrono::seconds(60), true});
+
+        asio::dispatch(ws->get_executor(), [self, ws, req]() mutable {
           ws->async_accept(*req, [self, ws](beast::error_code ec) {
             if (ec) {
               spdlog::warn("Upgrade failed: {}", ec.message());
@@ -105,11 +131,11 @@ asio::dispatch(ws->get_executor(), [self, ws, req]() mutable {
               return;
             }
 
-            auto session =
-                std::make_shared<Session>(std::move(*ws), self->client_registry_);
+            auto session = std::make_shared<Session>(std::move(*ws),
+                                                     self->client_registry_);
+
             session->run();
           });
         });
       });
-
 }

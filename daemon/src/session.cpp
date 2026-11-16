@@ -24,6 +24,8 @@ Session::Session(websocket::stream<tcp::socket> ws, ClientRegistry &registry)
     : id_(make_session_id()), ws_(std::move(ws)), registry_(registry) {}
 
 void Session::run() {
+  ws_.read_message_max(proto::kMaxMessageBytes);
+
   spdlog::info("session {} opened", id_);
   read();
 }
@@ -165,7 +167,7 @@ void Session::handle_auth(const nlohmann::json &message) {
       {"known", result.outcome == ClientRegistry::Outcome::Authenticated},
   };
 
- if (result.hardware_unstable) {
+  if (result.hardware_unstable) {
     welcome[proto::kFieldNote] = "hardware fingerprint changed repeatedly";
   } else if (result.hardware_moved) {
     welcome[proto::kFieldNote] = "hardware fingerprint changed for this device";
@@ -185,44 +187,78 @@ void Session::handle_ready(const std::string &type,
 void Session::write(const nlohmann::json &message) {
   auto payload = std::make_shared<std::string>(proto::encode(message));
 
+  boost::asio::dispatch(ws_.get_executor(),
+                        [self = shared_from_this(), payload]() {
+                          if (self->closed_) {
+                            return;
+                          }
+
+                          self->write_deque_.push_back(payload);
+
+                          if (self->write_deque_.size() == 1) {
+                            self->do_write();
+                          }
+                        });
+}
+
+void Session::do_write() {
+  auto payload = write_deque_.front();
+
   ws_.text(true);
+
   ws_.async_write(
       boost::asio::buffer(*payload),
-      [self = shared_from_this(), payload](beast::error_code ec, std::size_t) {
+      [self = shared_from_this(), payload](beast::error_code ec, size_t size) {
         if (ec) {
           self->close();
           return;
         }
-        if (self->state_ == State::Closed) {
-          self->close();
+
+        self->write_deque_.pop_front();
+
+        if (!self->write_deque_.empty()) {
+          self->do_write();
+          return;
+        }
+
+        if (self->closed_) {
+          return;
         }
       });
 }
 
 void Session::fail(const std::string &reason) {
   spdlog::warn("session {} rejected {}", id_, reason);
-  state_ = State::Closed;
   write(nlohmann::json{
       {"t", proto::kError},
       {"reason", reason},
   });
+  state_ = State::Closed;
 }
 
 void Session::close() {
-  if (closed_) {
-    return;
-  }
+    boost::asio::dispatch(
+        ws_.get_executor(),
+        [self = shared_from_this()]() {
 
-  closed_ = true;
-  state_ = State::Closed;
+            if (self->closed_) {
+                return;
+            }
 
-  beast::error_code ignored;
-  ws_.next_layer().shutdown(tcp::socket::shutdown_both, ignored);
-  ws_.next_layer().close(ignored);
+            self->closed_ = true;
+            self->state_ = State::Closed;
 
-  if (auto client = client_.lock()) {
-    client->sessions().remove(id_);
-  }
+            beast::error_code ignored;
 
-  spdlog::info("session {} closed", id_);
+            self->ws_.next_layer().shutdown(
+                tcp::socket::shutdown_both, ignored);
+
+            self->ws_.next_layer().close(ignored);
+
+            if (auto client = self->client_.lock()) {
+                client->sessions().remove(self->id_);
+            }
+
+            spdlog::info("session {} closed", self->id_);
+        });
 }
